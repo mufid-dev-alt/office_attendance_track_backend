@@ -145,6 +145,7 @@ def generate_attendance_data():
 
 ATTENDANCE_RECORDS = generate_attendance_data()
 TODOS = []
+DELETED_USERS = []  # Store deleted users for undo functionality
 
 @app.get("/")
 def read_root():
@@ -236,6 +237,108 @@ def get_users():
         }
         for user in USERS
     ]
+
+@app.post("/api/users")
+def create_user(user_data: dict):
+    """Create a new user"""
+    global USERS
+    
+    # Check if user ID or email already exists
+    existing_user = next((u for u in USERS if u["id"] == user_data["id"] or u["email"] == user_data["email"]), None)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User ID or email already exists")
+    
+    new_user = {
+        "id": user_data["id"],
+        "email": user_data["email"],
+        "password": user_data["password"],
+        "full_name": user_data["full_name"],
+        "role": user_data.get("role", "user")
+    }
+    USERS.append(new_user)
+    
+    return {
+        "id": new_user["id"],
+        "email": new_user["email"],
+        "full_name": new_user["full_name"],
+        "role": new_user["role"]
+    }
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int):
+    """Delete a user and all their data"""
+    global USERS, ATTENDANCE_RECORDS, TODOS, DELETED_USERS
+    
+    # Find the user
+    user_to_delete = next((u for u in USERS if u["id"] == user_id), None)
+    if not user_to_delete:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow deleting admin users
+    if user_to_delete["role"] == "admin":
+        raise HTTPException(status_code=403, detail="Cannot delete admin users")
+    
+    # Store user data for undo functionality
+    user_attendance = [r for r in ATTENDANCE_RECORDS if r["user_id"] == user_id]
+    user_todos = [t for t in TODOS if t["user_id"] == user_id]
+    
+    deleted_user_data = {
+        "user": user_to_delete,
+        "attendance": user_attendance,
+        "todos": user_todos,
+        "deleted_at": datetime.now().isoformat()
+    }
+    DELETED_USERS.append(deleted_user_data)
+    
+    # Remove user from USERS
+    USERS = [u for u in USERS if u["id"] != user_id]
+    
+    # Remove all attendance records
+    ATTENDANCE_RECORDS = [r for r in ATTENDANCE_RECORDS if r["user_id"] != user_id]
+    
+    # Remove all todos
+    TODOS = [t for t in TODOS if t["user_id"] != user_id]
+    
+    return {
+        "message": f"User {user_to_delete['full_name']} and all their data has been deleted",
+        "deleted_user": {
+            "id": user_to_delete["id"],
+            "full_name": user_to_delete["full_name"],
+            "email": user_to_delete["email"]
+        },
+        "undo_available": True
+    }
+
+@app.post("/api/users/{user_id}/undo")
+def undo_user_deletion(user_id: int):
+    """Undo user deletion and restore all their data"""
+    global USERS, ATTENDANCE_RECORDS, TODOS, DELETED_USERS
+    
+    # Find the deleted user
+    deleted_user_data = next((d for d in DELETED_USERS if d["user"]["id"] == user_id), None)
+    if not deleted_user_data:
+        raise HTTPException(status_code=404, detail="No deleted user found to undo")
+    
+    # Restore user
+    USERS.append(deleted_user_data["user"])
+    
+    # Restore attendance records
+    ATTENDANCE_RECORDS.extend(deleted_user_data["attendance"])
+    
+    # Restore todos
+    TODOS.extend(deleted_user_data["todos"])
+    
+    # Remove from deleted users list
+    DELETED_USERS = [d for d in DELETED_USERS if d["user"]["id"] != user_id]
+    
+    return {
+        "message": f"User {deleted_user_data['user']['full_name']} and all their data has been restored",
+        "restored_user": {
+            "id": deleted_user_data["user"]["id"],
+            "full_name": deleted_user_data["user"]["full_name"],
+            "email": deleted_user_data["user"]["email"]
+        }
+    }
 
 @app.get("/api/attendance")
 def get_attendance(
