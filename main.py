@@ -58,13 +58,13 @@ class AttendanceRecord(BaseModel):
 class TodoRequest(BaseModel):
     user_id: int
     notes: str
-    completed: int = 0
+    date_created: Optional[str] = None
 
 class Todo(BaseModel):
     id: int
     user_id: int
     notes: str
-    completed: int = 0
+    date_created: str
 
 # Mock data for demonstration
 USERS = [
@@ -376,18 +376,18 @@ def create_todo(todo: TodoRequest):
         "id": len(TODOS) + 1,
         "user_id": todo.user_id,
         "notes": todo.notes,
-        "completed": todo.completed
+        "date_created": todo.date_created or datetime.now().strftime("%Y-%m-%d")
     }
     TODOS.append(new_todo)
     return new_todo
 
 @app.put("/api/todos/{todo_id}")
-def update_todo(todo_id: int, completed: Optional[int] = Query(None)):
-    """Update a todo - simplified for completion toggle"""
+def update_todo(todo_id: int, notes: Optional[str] = Query(None)):
+    """Update a todo"""
     for i, existing_todo in enumerate(TODOS):
         if existing_todo["id"] == todo_id:
-            if completed is not None:
-                TODOS[i]["completed"] = completed
+            if notes is not None:
+                TODOS[i]["notes"] = notes
             return TODOS[i]
     raise HTTPException(status_code=404, detail="Todo not found")
 
