@@ -112,37 +112,38 @@ USERS = [
     }
 ]
 
-# Pre-populate attendance data for June 2025 (excluding weekends)
-def generate_june_attendance():
+# Pre-populate attendance data for April 1, 2025 to July 2, 2025 (excluding weekends)
+def generate_attendance_data():
     attendance_records = []
     record_id = 1
     
-    # June 2025: 1st to 26th (excluding weekends)
-    start_date = datetime(2025, 6, 1)
+    # Start from April 1, 2025
+    start_date = datetime(2025, 4, 1)
+    # End at July 2, 2025
+    end_date = datetime(2025, 7, 2)
     
     for user in USERS[1:]:  # Skip admin user
-        for day in range(26):  # 1st to 26th June
-            current_date = start_date + timedelta(days=day)
-            
+        current_date = start_date
+        while current_date <= end_date:
             # Skip weekends (Saturday=5, Sunday=6)
-            if current_date.weekday() >= 5:
-                continue
+            if current_date.weekday() < 5:
+                # Random attendance pattern (85% present, 15% absent)
+                status = "present" if random.random() < 0.85 else "absent"
+                
+                attendance_records.append({
+                    "id": record_id,
+                    "user_id": user["id"],
+                    "status": status,
+                    "date": current_date.strftime("%Y-%m-%d"),
+                    "notes": None
+                })
+                record_id += 1
             
-            # Random attendance pattern (85% present, 15% absent)
-            status = "present" if random.random() < 0.85 else "absent"
-            
-            attendance_records.append({
-                "id": record_id,
-                "user_id": user["id"],
-                "status": status,
-                "date": current_date.strftime("%Y-%m-%d"),
-                "notes": None  # No notes for clean export
-            })
-            record_id += 1
+            current_date += timedelta(days=1)
     
     return attendance_records
 
-ATTENDANCE_RECORDS = generate_june_attendance()
+ATTENDANCE_RECORDS = generate_attendance_data()
 TODOS = []
 
 @app.get("/")
@@ -237,11 +238,29 @@ def get_users():
     ]
 
 @app.get("/api/attendance")
-def get_attendance(user_id: Optional[int] = Query(None)):
-    """Get attendance records - optionally filtered by user_id"""
+def get_attendance(
+    user_id: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+    year: Optional[int] = Query(None)
+):
+    """Get attendance records - optionally filtered by user_id, month, and year"""
     records = ATTENDANCE_RECORDS
+    
+    # Filter by user_id
     if user_id:
-        records = [record for record in ATTENDANCE_RECORDS if record.get("user_id") == user_id]
+        records = [record for record in records if record.get("user_id") == user_id]
+    
+    # Filter by month and year
+    if month is not None or year is not None:
+        filtered_records = []
+        for record in records:
+            record_date = datetime.strptime(record["date"], "%Y-%m-%d")
+            if year is not None and record_date.year != year:
+                continue
+            if month is not None and record_date.month != month:
+                continue
+            filtered_records.append(record)
+        records = filtered_records
     
     # For export purposes, remove notes and clean up data
     clean_records = []
@@ -265,6 +284,22 @@ def get_attendance(user_id: Optional[int] = Query(None)):
 @app.post("/api/attendance")
 def create_attendance(record: AttendanceRequest):
     """Create attendance record"""
+    global ATTENDANCE_RECORDS
+    
+    # Check if attendance already exists for this user and date
+    existing_record = next(
+        (r for r in ATTENDANCE_RECORDS 
+         if r["user_id"] == record.user_id and r["date"] == record.date),
+        None
+    )
+    
+    if existing_record:
+        # Update existing record
+        existing_record["status"] = record.status
+        existing_record["notes"] = record.notes
+        return existing_record
+    
+    # Create new record
     new_record = {
         "id": len(ATTENDANCE_RECORDS) + 1,
         "user_id": record.user_id,
@@ -273,14 +308,49 @@ def create_attendance(record: AttendanceRequest):
         "notes": record.notes
     }
     ATTENDANCE_RECORDS.append(new_record)
+    
+    # Return the complete record with user info for frontend
+    user = next((u for u in USERS if u["id"] == record.user_id), None)
+    if user:
+        new_record["user_name"] = user["full_name"]
+        new_record["user_email"] = user["email"]
+    
     return new_record
 
+@app.delete("/api/attendance/{attendance_id}")
+def delete_attendance(attendance_id: int):
+    """Delete an attendance record (for undo functionality)"""
+    global ATTENDANCE_RECORDS
+    for i, record in enumerate(ATTENDANCE_RECORDS):
+        if record["id"] == attendance_id:
+            deleted_record = ATTENDANCE_RECORDS.pop(i)
+            return {"message": "Attendance deleted", "record": deleted_record}
+    raise HTTPException(status_code=404, detail="Attendance record not found")
+
 @app.get("/api/attendance/stats")
-def get_attendance_stats(user_id: Optional[int] = Query(None)):
-    """Get attendance statistics - optionally filtered by user_id"""
+def get_attendance_stats(
+    user_id: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+    year: Optional[int] = Query(None)
+):
+    """Get attendance statistics - optionally filtered by user_id, month, and year"""
     records = ATTENDANCE_RECORDS
+    
+    # Filter by user_id
     if user_id:
-        records = [record for record in ATTENDANCE_RECORDS if record.get("user_id") == user_id]
+        records = [record for record in records if record.get("user_id") == user_id]
+    
+    # Filter by month and year
+    if month is not None or year is not None:
+        filtered_records = []
+        for record in records:
+            record_date = datetime.strptime(record["date"], "%Y-%m-%d")
+            if year is not None and record_date.year != year:
+                continue
+            if month is not None and record_date.month != month:
+                continue
+            filtered_records.append(record)
+        records = filtered_records
     
     total_records = len(records)
     present_count = len([r for r in records if r.get("status") == "present"])
