@@ -66,6 +66,13 @@ class Todo(BaseModel):
     notes: str
     date_created: str
 
+class CreateUserRequest(BaseModel):
+    id: int
+    email: str
+    password: str
+    full_name: str
+    role: Optional[str] = "user"
+
 # Mock data for demonstration
 USERS = [
     {
@@ -239,21 +246,21 @@ def get_users():
     ]
 
 @app.post("/api/users")
-def create_user(user_data: dict):
+def create_user(user_data: CreateUserRequest):
     """Create a new user"""
     global USERS
     
     # Check if user ID or email already exists
-    existing_user = next((u for u in USERS if u["id"] == user_data["id"] or u["email"] == user_data["email"]), None)
+    existing_user = next((u for u in USERS if u["id"] == user_data.id or u["email"] == user_data.email), None)
     if existing_user:
         raise HTTPException(status_code=400, detail="User ID or email already exists")
     
     new_user = {
-        "id": user_data["id"],
-        "email": user_data["email"],
-        "password": user_data["password"],
-        "full_name": user_data["full_name"],
-        "role": user_data.get("role", "user")
+        "id": user_data.id,
+        "email": user_data.email,
+        "password": user_data.password,
+        "full_name": user_data.full_name,
+        "role": user_data.role
     }
     USERS.append(new_user)
     
