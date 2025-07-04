@@ -204,6 +204,15 @@ class GlobalState:
     
     def load_or_create_attendance(self):
         """Load attendance from file or generate defaults if none exist"""
+        # First check for persisted default attendance
+        persisted_attendance = load_data_from_file(os.path.join(DATA_DIR, "default_attendance.json"), None)
+        if persisted_attendance:
+            print(f"🔒 Found persisted default attendance: {len(persisted_attendance)} records")
+            # Save to regular attendance file too
+            save_data_to_file(ATTENDANCE_FILE, persisted_attendance)
+            return persisted_attendance
+        
+        # Then check for regular attendance records
         existing_attendance = load_data_from_file(ATTENDANCE_FILE, [])
         if existing_attendance:
             print(f"📂 Loaded {len(existing_attendance)} existing attendance records from storage")
@@ -262,6 +271,12 @@ def ensure_user_persistence():
     DEFAULT_USERS = USERS.copy()
     save_data_to_file(os.path.join(DATA_DIR, "default_users.json"), DEFAULT_USERS)
     print(f"🔒 Persisted {len(DEFAULT_USERS)} users as defaults")
+    
+def ensure_attendance_persistence():
+    """Save current attendance records for persistence across restarts"""
+    global ATTENDANCE_RECORDS
+    save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), ATTENDANCE_RECORDS)
+    print(f"🔒 Persisted {len(ATTENDANCE_RECORDS)} attendance records for better persistence")
     
 # Function to generate attendance for a new user
 def generate_attendance_for_user(user_id):
@@ -653,6 +668,9 @@ def create_attendance(record: AttendanceRequest):
         existing_record["notes"] = record.notes
         # Save to file for persistence
         save_attendance()
+        # Ensure attendance persistence across restarts
+        ensure_attendance_persistence()
+        print(f"✅ Updated attendance for user {record.user_id} on {record.date} to {record.status}")
         return existing_record
     
     # Create new record
@@ -667,6 +685,10 @@ def create_attendance(record: AttendanceRequest):
     
     # Save to file for persistence
     save_attendance()
+    
+    # Ensure attendance persistence across restarts
+    ensure_attendance_persistence()
+    print(f"✅ Created new attendance for user {record.user_id} on {record.date}: {record.status}")
     
     # Return the complete record with user info for frontend
     user = next((u for u in USERS if u["id"] == record.user_id), None)
@@ -685,6 +707,9 @@ def delete_attendance(attendance_id: int):
             deleted_record = ATTENDANCE_RECORDS.pop(i)
             # Save to file for persistence
             save_attendance()
+            # Ensure attendance persistence across restarts
+            ensure_attendance_persistence()
+            print(f"✅ Deleted attendance record {attendance_id}")
             return {"message": "Attendance deleted", "record": deleted_record}
     raise HTTPException(status_code=404, detail="Attendance record not found")
 
