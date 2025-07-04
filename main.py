@@ -219,28 +219,7 @@ ATTENDANCE_RECORDS = state.attendance_records
 TODOS = state.todos
 DELETED_USERS = state.deleted_users
 
-# Reset users to defaults and clean up any test users
-def reset_to_default_users():
-    """Reset users to default set and clean up test users"""
-    global USERS, ATTENDANCE_RECORDS, TODOS, DELETED_USERS
-    
-    # Keep only the default users (IDs 1-6)
-    default_user_ids = [1, 2, 3, 4, 5, 6]
-    USERS[:] = [user for user in USERS if user["id"] in default_user_ids]
-    
-    # Clean up attendance records for non-default users
-    ATTENDANCE_RECORDS[:] = [record for record in ATTENDANCE_RECORDS if record["user_id"] in default_user_ids]
-    
-    # Clean up todos for non-default users
-    TODOS[:] = [todo for todo in TODOS if todo["user_id"] in default_user_ids]
-    
-    # Clear deleted users
-    DELETED_USERS.clear()
-    
-    print(f"🧹 Reset to default users: {len(USERS)} users, {len(ATTENDANCE_RECORDS)} attendance records")
-
-# Perform cleanup on startup
-reset_to_default_users()
+# Note: System reset removed - all users created by admin will persist permanently
 
 @app.get("/")
 def read_root():
