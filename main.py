@@ -179,6 +179,10 @@ class GlobalState:
         self.attendance_records = self.load_or_create_attendance()
         self.todos = load_data_from_file(TODOS_FILE, [])
         self.deleted_users = load_data_from_file(DELETED_USERS_FILE, [])
+        
+        # Create a backup of initial state for serverless environment
+        self._initial_attendance = self.attendance_records.copy()
+        
         print(f"🚀 Initialized global state with {len(self.users)} users and {len(self.attendance_records)} attendance records")
     
     def load_or_create_users(self):
@@ -204,24 +208,41 @@ class GlobalState:
     
     def load_or_create_attendance(self):
         """Load attendance from file or generate defaults if none exist"""
-        # First check for persisted default attendance
+        # Try multiple backup sources in order of preference
+        
+        # First check backup attendance (most reliable)
+        backup_attendance = load_data_from_file(os.path.join(DATA_DIR, "backup_attendance.json"), None)
+        if backup_attendance:
+            print(f"🔄 Found backup attendance: {len(backup_attendance)} records")
+            # Save to all storage locations
+            save_data_to_file(ATTENDANCE_FILE, backup_attendance)
+            save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), backup_attendance)
+            return backup_attendance
+            
+        # Then check for persisted default attendance
         persisted_attendance = load_data_from_file(os.path.join(DATA_DIR, "default_attendance.json"), None)
         if persisted_attendance:
             print(f"🔒 Found persisted default attendance: {len(persisted_attendance)} records")
-            # Save to regular attendance file too
+            # Save to all storage locations
             save_data_to_file(ATTENDANCE_FILE, persisted_attendance)
+            save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), persisted_attendance)
             return persisted_attendance
         
         # Then check for regular attendance records
         existing_attendance = load_data_from_file(ATTENDANCE_FILE, [])
         if existing_attendance:
             print(f"📂 Loaded {len(existing_attendance)} existing attendance records from storage")
+            # Save to all backup locations
+            save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), existing_attendance)
+            save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), existing_attendance)
             return existing_attendance
         else:
             print(f"🆕 No existing attendance found, generating defaults")
             default_attendance = self.generate_attendance_data()
-            # Save defaults to file for persistence
+            # Save defaults to all storage locations
             save_data_to_file(ATTENDANCE_FILE, default_attendance)
+            save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), default_attendance)
+            save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), default_attendance)
             return default_attendance
     
     def generate_attendance_data(self):
@@ -666,16 +687,25 @@ def create_attendance(record: AttendanceRequest):
         # Update existing record
         existing_record["status"] = record.status
         existing_record["notes"] = record.notes
-        # Save to file for persistence
+        
+        # Make the update permanent in memory
+        for i, r in enumerate(ATTENDANCE_RECORDS):
+            if r["user_id"] == record.user_id and r["date"] == record.date:
+                ATTENDANCE_RECORDS[i] = existing_record
+                break
+        
+        # Force save to all persistence mechanisms
         save_attendance()
-        # Ensure attendance persistence across restarts
-        ensure_attendance_persistence()
+        save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), ATTENDANCE_RECORDS)
+        save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), ATTENDANCE_RECORDS)
+        
         print(f"✅ Updated attendance for user {record.user_id} on {record.date} to {record.status}")
         return existing_record
     
-    # Create new record
+    # Create new record with a unique ID
+    max_id = max([r.get("id", 0) for r in ATTENDANCE_RECORDS], default=0)
     new_record = {
-        "id": len(ATTENDANCE_RECORDS) + 1,
+        "id": max_id + 1,
         "user_id": record.user_id,
         "status": record.status,
         "date": record.date,
@@ -683,11 +713,11 @@ def create_attendance(record: AttendanceRequest):
     }
     ATTENDANCE_RECORDS.append(new_record)
     
-    # Save to file for persistence
+    # Force save to all persistence mechanisms
     save_attendance()
+    save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), ATTENDANCE_RECORDS)
+    save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), ATTENDANCE_RECORDS)
     
-    # Ensure attendance persistence across restarts
-    ensure_attendance_persistence()
     print(f"✅ Created new attendance for user {record.user_id} on {record.date}: {record.status}")
     
     # Return the complete record with user info for frontend
@@ -705,10 +735,12 @@ def delete_attendance(attendance_id: int):
     for i, record in enumerate(ATTENDANCE_RECORDS):
         if record["id"] == attendance_id:
             deleted_record = ATTENDANCE_RECORDS.pop(i)
-            # Save to file for persistence
+            
+            # Force save to all persistence mechanisms
             save_attendance()
-            # Ensure attendance persistence across restarts
-            ensure_attendance_persistence()
+            save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), ATTENDANCE_RECORDS)
+            save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), ATTENDANCE_RECORDS)
+            
             print(f"✅ Deleted attendance record {attendance_id}")
             return {"message": "Attendance deleted", "record": deleted_record}
     raise HTTPException(status_code=404, detail="Attendance record not found")
@@ -802,4 +834,20 @@ def logout():
 # Health check endpoint
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "office-attendance-api"} 
+    return {"status": "healthy", "service": "office-attendance-api"}
+
+@app.post("/api/attendance/force-sync")
+def force_sync_attendance():
+    """Force sync attendance data across all storage mechanisms"""
+    global ATTENDANCE_RECORDS
+    
+    # Save current attendance to all storage locations
+    save_attendance()
+    save_data_to_file(os.path.join(DATA_DIR, "default_attendance.json"), ATTENDANCE_RECORDS)
+    save_data_to_file(os.path.join(DATA_DIR, "backup_attendance.json"), ATTENDANCE_RECORDS)
+    
+    return {
+        "success": True, 
+        "message": f"Attendance data synced successfully ({len(ATTENDANCE_RECORDS)} records)",
+        "record_count": len(ATTENDANCE_RECORDS)
+    }
