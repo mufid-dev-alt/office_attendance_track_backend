@@ -232,6 +232,11 @@ def login_post(login_data: LoginRequest):
             message=f"Login error: {str(e)}"
         )
 
+@app.options("/api/users")
+def users_options():
+    """Handle CORS preflight for users endpoint"""
+    return {"message": "OK"}
+
 @app.get("/api/users")
 def get_users():
     """Get all users (admin only)"""
@@ -250,9 +255,12 @@ def create_user(user_data: CreateUserRequest):
     """Create a new user"""
     global USERS
     
+    print(f"Received user creation request: {user_data}")
+    
     # Check if user ID or email already exists
     existing_user = next((u for u in USERS if u["id"] == user_data.id or u["email"] == user_data.email), None)
     if existing_user:
+        print(f"User already exists: {existing_user}")
         raise HTTPException(status_code=400, detail="User ID or email already exists")
     
     new_user = {
@@ -263,6 +271,9 @@ def create_user(user_data: CreateUserRequest):
         "role": user_data.role
     }
     USERS.append(new_user)
+    
+    print(f"Created new user: {new_user}")
+    print(f"Total users now: {len(USERS)}")
     
     return {
         "id": new_user["id"],
