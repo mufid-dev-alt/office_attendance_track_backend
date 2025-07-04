@@ -69,7 +69,6 @@ class Todo(BaseModel):
     date_created: str
 
 class CreateUserRequest(BaseModel):
-    id: int
     email: str
     password: str
     full_name: str
@@ -220,6 +219,29 @@ ATTENDANCE_RECORDS = state.attendance_records
 TODOS = state.todos
 DELETED_USERS = state.deleted_users
 
+# Reset users to defaults and clean up any test users
+def reset_to_default_users():
+    """Reset users to default set and clean up test users"""
+    global USERS, ATTENDANCE_RECORDS, TODOS, DELETED_USERS
+    
+    # Keep only the default users (IDs 1-6)
+    default_user_ids = [1, 2, 3, 4, 5, 6]
+    USERS[:] = [user for user in USERS if user["id"] in default_user_ids]
+    
+    # Clean up attendance records for non-default users
+    ATTENDANCE_RECORDS[:] = [record for record in ATTENDANCE_RECORDS if record["user_id"] in default_user_ids]
+    
+    # Clean up todos for non-default users
+    TODOS[:] = [todo for todo in TODOS if todo["user_id"] in default_user_ids]
+    
+    # Clear deleted users
+    DELETED_USERS.clear()
+    
+    print(f"🧹 Reset to default users: {len(USERS)} users, {len(ATTENDANCE_RECORDS)} attendance records")
+
+# Perform cleanup on startup
+reset_to_default_users()
+
 @app.get("/")
 def read_root():
     return {
@@ -324,13 +346,17 @@ def create_user(user_data: CreateUserRequest):
     """Create a new user"""
     global USERS
     
-    # Check if user ID or email already exists
-    existing_user = next((u for u in USERS if u["id"] == user_data.id or u["email"] == user_data.email), None)
+    # Check if email already exists
+    existing_user = next((u for u in USERS if u["email"] == user_data.email), None)
     if existing_user:
-        raise HTTPException(status_code=400, detail="User ID or email already exists")
+        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # Auto-generate user ID
+    max_id = max([u["id"] for u in USERS], default=0)
+    new_user_id = max_id + 1
     
     new_user = {
-        "id": user_data.id,
+        "id": new_user_id,
         "email": user_data.email,
         "password": user_data.password,
         "full_name": user_data.full_name,

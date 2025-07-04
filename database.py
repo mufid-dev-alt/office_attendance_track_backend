@@ -135,7 +135,10 @@ class SimpleDatabase:
         return self.data['users']
     
     def add_user(self, user_data: Dict) -> Dict:
-        """Add a new user"""
+        """Add a new user with auto-generated ID"""
+        # Auto-generate user ID
+        max_id = max([u["id"] for u in self.data['users']], default=0)
+        user_data['id'] = max_id + 1
         user_data['created_at'] = datetime.now().isoformat()
         self.data['users'].append(user_data)
         self.save_data()
