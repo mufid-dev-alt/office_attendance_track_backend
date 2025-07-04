@@ -173,11 +173,38 @@ DEFAULT_USERS = [
 # Global state management for Vercel serverless environment
 class GlobalState:
     def __init__(self):
-        self.users = DEFAULT_USERS.copy()
-        self.attendance_records = self.generate_attendance_data()
-        self.todos = []
-        self.deleted_users = []
+        # Try to load existing data first, fall back to defaults
+        self.users = self.load_or_create_users()
+        self.attendance_records = self.load_or_create_attendance()
+        self.todos = load_data_from_file(TODOS_FILE, [])
+        self.deleted_users = load_data_from_file(DELETED_USERS_FILE, [])
         print(f"🚀 Initialized global state with {len(self.users)} users and {len(self.attendance_records)} attendance records")
+    
+    def load_or_create_users(self):
+        """Load users from file or create defaults if none exist"""
+        existing_users = load_data_from_file(USERS_FILE, [])
+        if existing_users:
+            print(f"📂 Loaded {len(existing_users)} existing users from storage")
+            return existing_users
+        else:
+            print(f"🆕 No existing users found, creating defaults")
+            default_users = DEFAULT_USERS.copy()
+            # Save defaults to file for persistence
+            save_data_to_file(USERS_FILE, default_users)
+            return default_users
+    
+    def load_or_create_attendance(self):
+        """Load attendance from file or generate defaults if none exist"""
+        existing_attendance = load_data_from_file(ATTENDANCE_FILE, [])
+        if existing_attendance:
+            print(f"📂 Loaded {len(existing_attendance)} existing attendance records from storage")
+            return existing_attendance
+        else:
+            print(f"🆕 No existing attendance found, generating defaults")
+            default_attendance = self.generate_attendance_data()
+            # Save defaults to file for persistence
+            save_data_to_file(ATTENDANCE_FILE, default_attendance)
+            return default_attendance
     
     def generate_attendance_data(self):
         """Generate default attendance data"""
@@ -309,6 +336,10 @@ def users_options():
 @app.get("/api/users")
 def get_users():
     """Get all users (admin only)"""
+    print(f"🔍 DEBUG: get_users called, current USERS count: {len(USERS)}")
+    for user in USERS:
+        print(f"   - User {user['id']}: {user['full_name']} ({user['email']})")
+    
     return [
         {
             "id": user["id"],
@@ -324,6 +355,8 @@ def get_users():
 def create_user(user_data: CreateUserRequest):
     """Create a new user"""
     global USERS
+    
+    print(f"🔍 DEBUG: create_user called, current USERS count before: {len(USERS)}")
     
     # Check if email already exists
     existing_user = next((u for u in USERS if u["email"] == user_data.email), None)
@@ -344,8 +377,12 @@ def create_user(user_data: CreateUserRequest):
     }
     USERS.append(new_user)
     
+    print(f"🔍 DEBUG: User created with ID {new_user_id}, USERS count after: {len(USERS)}")
+    
     # Save to file for persistence
     save_users()
+    
+    print(f"🔍 DEBUG: User data saved to file")
     
     return {
         "id": new_user["id"],
