@@ -105,6 +105,7 @@ def save_data_to_file(file_path, data):
         ensure_data_directory()
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"Successfully saved {len(data)} records to {file_path}")
     except Exception as e:
         print(f"Error saving {file_path}: {e}")
 
@@ -300,7 +301,8 @@ def get_users():
             "id": user["id"],
             "email": user["email"],
             "full_name": user["full_name"],
-            "role": user["role"]
+            "role": user["role"],
+            "created_at": user.get("created_at", None)
         }
         for user in USERS
     ]
@@ -320,7 +322,8 @@ def create_user(user_data: CreateUserRequest):
         "email": user_data.email,
         "password": user_data.password,
         "full_name": user_data.full_name,
-        "role": user_data.role
+        "role": user_data.role,
+        "created_at": datetime.now().isoformat()
     }
     USERS.append(new_user)
     
@@ -331,7 +334,8 @@ def create_user(user_data: CreateUserRequest):
         "id": new_user["id"],
         "email": new_user["email"],
         "full_name": new_user["full_name"],
-        "role": new_user["role"]
+        "role": new_user["role"],
+        "created_at": new_user["created_at"]
     }
 
 @app.delete("/api/users/{user_id}")
