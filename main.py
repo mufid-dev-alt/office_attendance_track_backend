@@ -111,6 +111,7 @@ def save_data_to_file(file_path, data):
 def save_users():
     """Save users to file"""
     save_data_to_file(USERS_FILE, USERS)
+    print(f"💾 Saved {len(USERS)} users to file")
 
 def save_attendance():
     """Save attendance records to file"""
@@ -184,7 +185,7 @@ class GlobalState:
         """Load users from file or create defaults if none exist"""
         existing_users = load_data_from_file(USERS_FILE, [])
         if existing_users:
-            print(f"📂 Loaded {len(existing_users)} existing users from storage")
+            print(f"📂 Loaded {len(existing_users)} existing users from file storage")
             return existing_users
         else:
             print(f"🆕 No existing users found, creating defaults")
@@ -254,10 +255,11 @@ def read_root():
         "message": "Office Attendance Management API", 
         "version": "1.0.0", 
         "status": "running",
-        "total_users": len(state.users),
-        "total_attendance_records": len(state.attendance_records),
+        "total_users": len(USERS),
+        "total_attendance_records": len(ATTENDANCE_RECORDS),
         "environment": "serverless",
-        "note": "Data persists within session only (Vercel serverless limitation)",
+        "session_id": str(hash(str(USERS))),  # Simple session identifier
+        "persistence_note": "Data persists during active session. May reset on serverless cold start.",
         "endpoints": {
             "login": "/api/login",
             "users": "/api/users",
