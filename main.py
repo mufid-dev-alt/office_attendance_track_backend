@@ -6,7 +6,6 @@ import random
 from datetime import datetime, timedelta
 import json
 import os
-import requests
 
 app = FastAPI(title="Office Attendance Management API", version="1.0.0")
 
@@ -28,11 +27,6 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
-
-# JSONBin.io configuration for persistent storage
-JSONBIN_API_KEY = os.getenv("JSONBIN_API_KEY", "$2a$10$9VzG4YKqsGJIqNvZCZFZEOmJHlzBzKvQ5r9zJZVzQJgIqNvZCZFZE")
-JSONBIN_BIN_ID = os.getenv("JSONBIN_BIN_ID", "676b8e5ae41b4d34e4573c5a")  # Default bin ID
-JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b"
 
 # Pydantic models for request/response
 class LoginRequest(BaseModel):
@@ -80,145 +74,145 @@ class CreateUserRequest(BaseModel):
     full_name: str
     role: Optional[str] = "user"
 
-# Cloud storage functions using JSONBin.io
-def load_data_from_cloud():
-    """Load data from JSONBin.io cloud storage"""
-    try:
-        headers = {
-            'X-Master-Key': JSONBIN_API_KEY,
-            'X-Bin-Meta': 'false'
-        }
-        
-        response = requests.get(f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}/latest", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"📥 Successfully loaded data from cloud storage")
-            return data
-        else:
-            print(f"❌ Failed to load from cloud storage: {response.status_code}")
-            return None
-    except Exception as e:
-        print(f"❌ Error loading from cloud storage: {e}")
-        return None
+# Data persistence functions
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+ATTENDANCE_FILE = os.path.join(DATA_DIR, "attendance.json")
+TODOS_FILE = os.path.join(DATA_DIR, "todos.json")
+DELETED_USERS_FILE = os.path.join(DATA_DIR, "deleted_users.json")
 
-def save_data_to_cloud(data):
-    """Save data to JSONBin.io cloud storage"""
+def ensure_data_directory():
+    """Create data directory if it doesn't exist"""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+def load_data_from_file(file_path, default_data):
+    """Load data from JSON file or return default if file doesn't exist"""
     try:
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Master-Key': JSONBIN_API_KEY
-        }
-        
-        response = requests.put(f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}", json=data, headers=headers)
-        if response.status_code == 200:
-            print(f"💾 Successfully saved data to cloud storage")
-            return True
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
         else:
-            print(f"❌ Failed to save to cloud storage: {response.status_code}")
-            return False
+            return default_data
     except Exception as e:
-        print(f"❌ Error saving to cloud storage: {e}")
-        return False
+        print(f"Error loading {file_path}: {e}")
+        return default_data
+
+def save_data_to_file(file_path, data):
+    """Save data to JSON file"""
+    try:
+        ensure_data_directory()
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"Successfully saved {len(data)} records to {file_path}")
+    except Exception as e:
+        print(f"Error saving {file_path}: {e}")
+
+def save_users():
+    """Save users to file"""
+    save_data_to_file(USERS_FILE, USERS)
+    print(f"💾 Saved {len(USERS)} users to file")
+
+def save_attendance():
+    """Save attendance records to file"""
+    save_data_to_file(ATTENDANCE_FILE, ATTENDANCE_RECORDS)
+
+def save_todos():
+    """Save todos to file"""
+    save_data_to_file(TODOS_FILE, TODOS)
+
+def save_deleted_users():
+    """Save deleted users to file"""
+    save_data_to_file(DELETED_USERS_FILE, DELETED_USERS)
 
 # Default data for demonstration
-DEFAULT_DATA = {
-    "users": [
-        {
-            "id": 1,
-            "email": "admin@company.com",
-            "password": "admin123",
-            "full_name": "Admin User",
-            "role": "admin"
-        },
-        {
-            "id": 2,
-            "email": "user1@company.com",
-            "password": "user123",
-            "full_name": "User One",
-            "role": "user"
-        },
-        {
-            "id": 3,
-            "email": "user2@company.com",
-            "password": "user123",
-            "full_name": "User Two",
-            "role": "user"
-        },
-        {
-            "id": 4,
-            "email": "user3@company.com",
-            "password": "user123",
-            "full_name": "User Three",
-            "role": "user"
-        },
-        {
-            "id": 5,
-            "email": "user4@company.com",
-            "password": "user123",
-            "full_name": "User Four",
-            "role": "user"
-        },
-        {
-            "id": 6,
-            "email": "user5@company.com",
-            "password": "user123",
-            "full_name": "User Five",
-            "role": "user"
-        }
-    ],
-    "attendance_records": [],
-    "todos": [],
-    "deleted_users": []
-}
+DEFAULT_USERS = [
+    {
+        "id": 1,
+        "email": "admin@company.com",
+        "password": "admin123",
+        "full_name": "Admin User",
+        "role": "admin"
+    },
+    {
+        "id": 2,
+        "email": "user1@company.com",
+        "password": "user123",
+        "full_name": "User One",
+        "role": "user"
+    },
+    {
+        "id": 3,
+        "email": "user2@company.com",
+        "password": "user123",
+        "full_name": "User Two",
+        "role": "user"
+    },
+    {
+        "id": 4,
+        "email": "user3@company.com",
+        "password": "user123",
+        "full_name": "User Three",
+        "role": "user"
+    },
+    {
+        "id": 5,
+        "email": "user4@company.com",
+        "password": "user123",
+        "full_name": "User Four",
+        "role": "user"
+    },
+    {
+        "id": 6,
+        "email": "user5@company.com",
+        "password": "user123",
+        "full_name": "User Five",
+        "role": "user"
+    }
+]
 
 # Global state management for Vercel serverless environment
 class GlobalState:
     def __init__(self):
-        # Initialize with default data first
-        self.users = DEFAULT_DATA["users"].copy()
-        self.attendance_records = DEFAULT_DATA["attendance_records"].copy()
-        self.todos = DEFAULT_DATA["todos"].copy()
-        self.deleted_users = DEFAULT_DATA["deleted_users"].copy()
-        self.session_id = random.randint(1000, 9999)
-        print(f"🚀 Initialized global state (Session {self.session_id}) with {len(self.users)} users")
-        
-        # Try to load data from cloud storage
-        self.load_from_cloud()
+        # Try to load existing data first, fall back to defaults
+        self.users = self.load_or_create_users()
+        self.attendance_records = self.load_or_create_attendance()
+        self.todos = load_data_from_file(TODOS_FILE, [])
+        self.deleted_users = load_data_from_file(DELETED_USERS_FILE, [])
+        print(f"🚀 Initialized global state with {len(self.users)} users and {len(self.attendance_records)} attendance records")
     
-    def load_from_cloud(self):
-        """Load data from cloud storage synchronously"""
-        try:
-            data = load_data_from_cloud()
-            if data and isinstance(data, dict):
-                self.users = data.get("users", DEFAULT_DATA["users"])
-                self.attendance_records = data.get("attendance_records", DEFAULT_DATA["attendance_records"])
-                self.todos = data.get("todos", DEFAULT_DATA["todos"])
-                self.deleted_users = data.get("deleted_users", DEFAULT_DATA["deleted_users"])
-                print(f"📥 Successfully loaded {len(self.users)} users from cloud storage")
-                return True
-            else:
-                print(f"❌ Failed to load from cloud storage - invalid data")
-        except Exception as e:
-            print(f"❌ Error loading from cloud storage: {e}")
-        
-        # Generate default attendance data if none exists
-        if not self.attendance_records:
-            self.generate_attendance_data()
-        
-        return False
+    def load_or_create_users(self):
+        """Load users from file or create defaults if none exist"""
+        existing_users = load_data_from_file(USERS_FILE, [])
+        if existing_users:
+            print(f"📂 Loaded {len(existing_users)} existing users from file storage")
+            # Update DEFAULT_USERS to match loaded users for persistence
+            global DEFAULT_USERS
+            DEFAULT_USERS = existing_users.copy()
+            print(f"🔄 Updated DEFAULT_USERS with {len(DEFAULT_USERS)} loaded users")
+            return existing_users
+        else:
+            print(f"🆕 No existing users found, creating defaults")
+            default_users = DEFAULT_USERS.copy()
+            # Save defaults to file for persistence
+            save_data_to_file(USERS_FILE, default_users)
+            return default_users
     
-    def save_to_cloud(self):
-        """Save current state to cloud storage"""
-        data = {
-            "users": self.users,
-            "attendance_records": self.attendance_records,
-            "todos": self.todos,
-            "deleted_users": self.deleted_users
-        }
-        return save_data_to_cloud(data)
+    def load_or_create_attendance(self):
+        """Load attendance from file or generate defaults if none exist"""
+        existing_attendance = load_data_from_file(ATTENDANCE_FILE, [])
+        if existing_attendance:
+            print(f"📂 Loaded {len(existing_attendance)} existing attendance records from storage")
+            return existing_attendance
+        else:
+            print(f"🆕 No existing attendance found, generating defaults")
+            default_attendance = self.generate_attendance_data()
+            # Save defaults to file for persistence
+            save_data_to_file(ATTENDANCE_FILE, default_attendance)
+            return default_attendance
     
     def generate_attendance_data(self):
-        """Generate sample attendance data for demonstration"""
+        """Generate default attendance data"""
         attendance_records = []
         record_id = 1
         
@@ -227,7 +221,7 @@ class GlobalState:
         # End at July 2, 2025
         end_date = datetime(2025, 7, 2)
         
-        for user in self.users[1:]:  # Skip admin user
+        for user in DEFAULT_USERS[1:]:  # Skip admin user
             current_date = start_date
             while current_date <= end_date:
                 # Skip weekends (Saturday=5, Sunday=6)
@@ -246,8 +240,7 @@ class GlobalState:
                 
                 current_date += timedelta(days=1)
         
-        self.attendance_records = attendance_records
-        print(f"📊 Generated {len(attendance_records)} attendance records")
+        return attendance_records
 
 # Initialize global state
 state = GlobalState()
@@ -258,7 +251,51 @@ ATTENDANCE_RECORDS = state.attendance_records
 TODOS = state.todos
 DELETED_USERS = state.deleted_users
 
-# Note: System reset removed - all users created by admin will persist permanently
+# Function to update DEFAULT_USERS with newly created users
+def update_default_users():
+    """Update DEFAULT_USERS list with current users to ensure persistence"""
+    global DEFAULT_USERS
+    DEFAULT_USERS = USERS.copy()
+    print(f"🔄 Updated DEFAULT_USERS list with {len(DEFAULT_USERS)} users")
+    
+# Function to generate attendance for a new user
+def generate_attendance_for_user(user_id):
+    """Generate default attendance data for a new user"""
+    global ATTENDANCE_RECORDS
+    
+    attendance_records = []
+    # Get the highest record ID to continue the sequence
+    max_record_id = max([r["id"] for r in ATTENDANCE_RECORDS], default=0)
+    record_id = max_record_id + 1
+    
+    # Start from April 1, 2025
+    start_date = datetime(2025, 4, 1)
+    # End at July 2, 2025
+    end_date = datetime(2025, 7, 2)
+    
+    current_date = start_date
+    while current_date <= end_date:
+        # Skip weekends (Saturday=5, Sunday=6)
+        if current_date.weekday() < 5:
+            # Random attendance pattern (85% present, 15% absent)
+            status = "present" if random.random() < 0.85 else "absent"
+            
+            new_record = {
+                "id": record_id,
+                "user_id": user_id,
+                "status": status,
+                "date": current_date.strftime("%Y-%m-%d"),
+                "notes": None
+            }
+            ATTENDANCE_RECORDS.append(new_record)
+            record_id += 1
+        
+        current_date += timedelta(days=1)
+    
+    # Save to file for persistence
+    save_attendance()
+    print(f"✅ Generated attendance records for user {user_id}")
+    return [r for r in ATTENDANCE_RECORDS if r["user_id"] == user_id]
 
 @app.get("/")
 def read_root():
@@ -367,7 +404,7 @@ def get_users():
 @app.post("/api/users")
 def create_user(user_data: CreateUserRequest):
     """Create a new user"""
-    global USERS
+    global USERS, DEFAULT_USERS
     
     print(f"🔍 DEBUG: create_user called, current USERS count before: {len(USERS)}")
     
@@ -392,17 +429,39 @@ def create_user(user_data: CreateUserRequest):
     
     print(f"🔍 DEBUG: User created with ID {new_user_id}, USERS count after: {len(USERS)}")
     
-    # Save to cloud for persistence
-    state.save_to_cloud()
+    # Save to file for persistence
+    save_users()
     
-    print(f"🔍 DEBUG: User data saved to cloud")
+    # Update DEFAULT_USERS to include this new user for persistence
+    update_default_users()
+    
+    # Generate attendance data for this new user
+    user_attendance = generate_attendance_for_user(new_user_id)
+    print(f"🔍 DEBUG: Generated {len(user_attendance)} attendance records for new user")
+    
+    # Create a default todo for the new user
+    if new_user["role"] != "admin":
+        new_todo = {
+            "id": len(TODOS) + 1,
+            "user_id": new_user_id,
+            "notes": f"Welcome {new_user['full_name']}! This is your first todo item.",
+            "date_created": datetime.now().strftime("%Y-%m-%d")
+        }
+        TODOS.append(new_todo)
+        save_todos()
+        print(f"🔍 DEBUG: Created default todo for new user")
+    
+    print(f"🔍 DEBUG: User data saved to file and set as default user")
     
     return {
         "id": new_user["id"],
         "email": new_user["email"],
         "full_name": new_user["full_name"],
         "role": new_user["role"],
-        "created_at": new_user["created_at"]
+        "created_at": new_user["created_at"],
+        "is_default": True,
+        "attendance_generated": True,
+        "todo_created": new_user["role"] != "admin"
     }
 
 @app.delete("/api/users/{user_id}")
@@ -440,8 +499,11 @@ def delete_user(user_id: int):
     # Remove all todos
     TODOS = [t for t in TODOS if t["user_id"] != user_id]
     
-    # Save all changes to cloud
-    state.save_to_cloud()
+    # Save all changes to files
+    save_users()
+    save_attendance()
+    save_todos()
+    save_deleted_users()
     
     return {
         "message": f"User {user_to_delete['full_name']} and all their data has been deleted",
@@ -475,8 +537,11 @@ def undo_user_deletion(user_id: int):
     # Remove from deleted users list
     DELETED_USERS = [d for d in DELETED_USERS if d["user"]["id"] != user_id]
     
-    # Save all changes to cloud
-    state.save_to_cloud()
+    # Save all changes to files
+    save_users()
+    save_attendance()
+    save_todos()
+    save_deleted_users()
     
     return {
         "message": f"User {deleted_user_data['user']['full_name']} and all their data has been restored",
@@ -547,8 +612,8 @@ def create_attendance(record: AttendanceRequest):
         # Update existing record
         existing_record["status"] = record.status
         existing_record["notes"] = record.notes
-        # Save to cloud for persistence
-        state.save_to_cloud()
+        # Save to file for persistence
+        save_attendance()
         return existing_record
     
     # Create new record
@@ -561,8 +626,8 @@ def create_attendance(record: AttendanceRequest):
     }
     ATTENDANCE_RECORDS.append(new_record)
     
-    # Save to cloud for persistence
-    state.save_to_cloud()
+    # Save to file for persistence
+    save_attendance()
     
     # Return the complete record with user info for frontend
     user = next((u for u in USERS if u["id"] == record.user_id), None)
@@ -579,8 +644,8 @@ def delete_attendance(attendance_id: int):
     for i, record in enumerate(ATTENDANCE_RECORDS):
         if record["id"] == attendance_id:
             deleted_record = ATTENDANCE_RECORDS.pop(i)
-            # Save to cloud for persistence
-            state.save_to_cloud()
+            # Save to file for persistence
+            save_attendance()
             return {"message": "Attendance deleted", "record": deleted_record}
     raise HTTPException(status_code=404, detail="Attendance record not found")
 
@@ -637,8 +702,8 @@ def create_todo(todo: TodoRequest):
     }
     TODOS.append(new_todo)
     
-    # Save to cloud for persistence
-    state.save_to_cloud()
+    # Save to file for persistence
+    save_todos()
     
     return new_todo
 
@@ -649,8 +714,8 @@ def update_todo(todo_id: int, notes: Optional[str] = Query(None)):
         if existing_todo["id"] == todo_id:
             if notes is not None:
                 TODOS[i]["notes"] = notes
-            # Save to cloud for persistence
-            state.save_to_cloud()
+            # Save to file for persistence
+            save_todos()
             return TODOS[i]
     raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -660,8 +725,8 @@ def delete_todo(todo_id: int):
     for i, todo in enumerate(TODOS):
         if todo["id"] == todo_id:
             deleted_todo = TODOS.pop(i)
-            # Save to cloud for persistence
-            state.save_to_cloud()
+            # Save to file for persistence
+            save_todos()
             return {"message": "Todo deleted", "todo": deleted_todo}
     raise HTTPException(status_code=404, detail="Todo not found")
 
