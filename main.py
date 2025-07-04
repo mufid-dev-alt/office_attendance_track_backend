@@ -183,13 +183,17 @@ class GlobalState:
     
     def load_or_create_users(self):
         """Load users from file or create defaults if none exist"""
+        # First check for persisted default users
+        persisted_defaults = load_data_from_file(os.path.join(DATA_DIR, "default_users.json"), None)
+        if persisted_defaults:
+            print(f"🔒 Found persisted default users: {len(persisted_defaults)}")
+            global DEFAULT_USERS
+            DEFAULT_USERS = persisted_defaults.copy()
+        
+        # Then check for regular users
         existing_users = load_data_from_file(USERS_FILE, [])
         if existing_users:
             print(f"📂 Loaded {len(existing_users)} existing users from file storage")
-            # Update DEFAULT_USERS to match loaded users for persistence
-            global DEFAULT_USERS
-            DEFAULT_USERS = existing_users.copy()
-            print(f"🔄 Updated DEFAULT_USERS with {len(DEFAULT_USERS)} loaded users")
             return existing_users
         else:
             print(f"🆕 No existing users found, creating defaults")
@@ -251,12 +255,13 @@ ATTENDANCE_RECORDS = state.attendance_records
 TODOS = state.todos
 DELETED_USERS = state.deleted_users
 
-# Function to update DEFAULT_USERS with newly created users
-def update_default_users():
-    """Update DEFAULT_USERS list with current users to ensure persistence"""
+# Function to ensure user persistence
+def ensure_user_persistence():
+    """Save current users as default users to ensure persistence across restarts"""
     global DEFAULT_USERS
     DEFAULT_USERS = USERS.copy()
-    print(f"🔄 Updated DEFAULT_USERS list with {len(DEFAULT_USERS)} users")
+    save_data_to_file(os.path.join(DATA_DIR, "default_users.json"), DEFAULT_USERS)
+    print(f"🔒 Persisted {len(DEFAULT_USERS)} users as defaults")
     
 # Function to generate attendance for a new user
 def generate_attendance_for_user(user_id):
@@ -432,8 +437,8 @@ def create_user(user_data: CreateUserRequest):
     # Save to file for persistence
     save_users()
     
-    # Update DEFAULT_USERS to include this new user for persistence
-    update_default_users()
+    # Ensure persistence by updating default users
+    ensure_user_persistence()
     
     # Generate attendance data for this new user
     user_attendance = generate_attendance_for_user(new_user_id)
@@ -505,6 +510,9 @@ def delete_user(user_id: int):
     save_todos()
     save_deleted_users()
     
+    # Update default users to ensure persistence
+    ensure_user_persistence()
+    
     return {
         "message": f"User {user_to_delete['full_name']} and all their data has been deleted",
         "deleted_user": {
@@ -513,6 +521,34 @@ def delete_user(user_id: int):
             "email": user_to_delete["email"]
         },
         "undo_available": True
+    }
+
+@app.post("/api/users/{user_id}/permanent-delete")
+def permanent_delete_user(user_id: int):
+    """Permanently delete a user without waiting for the timeout"""
+    global DELETED_USERS
+    
+    # Find the deleted user
+    deleted_user_data = next((d for d in DELETED_USERS if d["user"]["id"] == user_id), None)
+    if not deleted_user_data:
+        raise HTTPException(status_code=404, detail="No deleted user found")
+    
+    # Remove from deleted users list
+    DELETED_USERS = [d for d in DELETED_USERS if d["user"]["id"] != user_id]
+    
+    # Save changes
+    save_deleted_users()
+    
+    # Update default users to ensure persistence
+    ensure_user_persistence()
+    
+    return {
+        "message": f"User {deleted_user_data['user']['full_name']} has been permanently deleted",
+        "deleted_user": {
+            "id": deleted_user_data["user"]["id"],
+            "full_name": deleted_user_data["user"]["full_name"],
+            "email": deleted_user_data["user"]["email"]
+        }
     }
 
 @app.post("/api/users/{user_id}/undo")
@@ -542,6 +578,9 @@ def undo_user_deletion(user_id: int):
     save_attendance()
     save_todos()
     save_deleted_users()
+    
+    # Update default users to ensure persistence
+    ensure_user_persistence()
     
     return {
         "message": f"User {deleted_user_data['user']['full_name']} and all their data has been restored",
