@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 import random
 from datetime import datetime, timedelta
+import json
+import os
 
 app = FastAPI(title="Office Attendance Management API", version="1.0.0")
 
@@ -73,8 +75,57 @@ class CreateUserRequest(BaseModel):
     full_name: str
     role: Optional[str] = "user"
 
-# Mock data for demonstration
-USERS = [
+# Data persistence functions
+DATA_DIR = "data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+ATTENDANCE_FILE = os.path.join(DATA_DIR, "attendance.json")
+TODOS_FILE = os.path.join(DATA_DIR, "todos.json")
+DELETED_USERS_FILE = os.path.join(DATA_DIR, "deleted_users.json")
+
+def ensure_data_directory():
+    """Create data directory if it doesn't exist"""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+def load_data_from_file(file_path, default_data):
+    """Load data from JSON file or return default if file doesn't exist"""
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            return default_data
+    except Exception as e:
+        print(f"Error loading {file_path}: {e}")
+        return default_data
+
+def save_data_to_file(file_path, data):
+    """Save data to JSON file"""
+    try:
+        ensure_data_directory()
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving {file_path}: {e}")
+
+def save_users():
+    """Save users to file"""
+    save_data_to_file(USERS_FILE, USERS)
+
+def save_attendance():
+    """Save attendance records to file"""
+    save_data_to_file(ATTENDANCE_FILE, ATTENDANCE_RECORDS)
+
+def save_todos():
+    """Save todos to file"""
+    save_data_to_file(TODOS_FILE, TODOS)
+
+def save_deleted_users():
+    """Save deleted users to file"""
+    save_data_to_file(DELETED_USERS_FILE, DELETED_USERS)
+
+# Default data for demonstration
+DEFAULT_USERS = [
     {
         "id": 1,
         "email": "admin@company.com",
@@ -119,6 +170,9 @@ USERS = [
     }
 ]
 
+# Load data from files or use defaults
+USERS = load_data_from_file(USERS_FILE, DEFAULT_USERS)
+
 # Pre-populate attendance data for April 1, 2025 to July 2, 2025 (excluding weekends)
 def generate_attendance_data():
     attendance_records = []
@@ -129,7 +183,7 @@ def generate_attendance_data():
     # End at July 2, 2025
     end_date = datetime(2025, 7, 2)
     
-    for user in USERS[1:]:  # Skip admin user
+    for user in DEFAULT_USERS[1:]:  # Skip admin user
         current_date = start_date
         while current_date <= end_date:
             # Skip weekends (Saturday=5, Sunday=6)
@@ -150,9 +204,10 @@ def generate_attendance_data():
     
     return attendance_records
 
-ATTENDANCE_RECORDS = generate_attendance_data()
-TODOS = []
-DELETED_USERS = []  # Store deleted users for undo functionality
+# Load data from files or generate defaults
+ATTENDANCE_RECORDS = load_data_from_file(ATTENDANCE_FILE, generate_attendance_data())
+TODOS = load_data_from_file(TODOS_FILE, [])
+DELETED_USERS = load_data_from_file(DELETED_USERS_FILE, [])
 
 @app.get("/")
 def read_root():
@@ -269,6 +324,9 @@ def create_user(user_data: CreateUserRequest):
     }
     USERS.append(new_user)
     
+    # Save to file for persistence
+    save_users()
+    
     return {
         "id": new_user["id"],
         "email": new_user["email"],
@@ -311,6 +369,12 @@ def delete_user(user_id: int):
     # Remove all todos
     TODOS = [t for t in TODOS if t["user_id"] != user_id]
     
+    # Save all changes to files
+    save_users()
+    save_attendance()
+    save_todos()
+    save_deleted_users()
+    
     return {
         "message": f"User {user_to_delete['full_name']} and all their data has been deleted",
         "deleted_user": {
@@ -342,6 +406,12 @@ def undo_user_deletion(user_id: int):
     
     # Remove from deleted users list
     DELETED_USERS = [d for d in DELETED_USERS if d["user"]["id"] != user_id]
+    
+    # Save all changes to files
+    save_users()
+    save_attendance()
+    save_todos()
+    save_deleted_users()
     
     return {
         "message": f"User {deleted_user_data['user']['full_name']} and all their data has been restored",
@@ -412,6 +482,8 @@ def create_attendance(record: AttendanceRequest):
         # Update existing record
         existing_record["status"] = record.status
         existing_record["notes"] = record.notes
+        # Save to file for persistence
+        save_attendance()
         return existing_record
     
     # Create new record
@@ -423,6 +495,9 @@ def create_attendance(record: AttendanceRequest):
         "notes": record.notes
     }
     ATTENDANCE_RECORDS.append(new_record)
+    
+    # Save to file for persistence
+    save_attendance()
     
     # Return the complete record with user info for frontend
     user = next((u for u in USERS if u["id"] == record.user_id), None)
@@ -439,6 +514,8 @@ def delete_attendance(attendance_id: int):
     for i, record in enumerate(ATTENDANCE_RECORDS):
         if record["id"] == attendance_id:
             deleted_record = ATTENDANCE_RECORDS.pop(i)
+            # Save to file for persistence
+            save_attendance()
             return {"message": "Attendance deleted", "record": deleted_record}
     raise HTTPException(status_code=404, detail="Attendance record not found")
 
@@ -494,6 +571,10 @@ def create_todo(todo: TodoRequest):
         "date_created": todo.date_created or datetime.now().strftime("%Y-%m-%d")
     }
     TODOS.append(new_todo)
+    
+    # Save to file for persistence
+    save_todos()
+    
     return new_todo
 
 @app.put("/api/todos/{todo_id}")
@@ -503,6 +584,8 @@ def update_todo(todo_id: int, notes: Optional[str] = Query(None)):
         if existing_todo["id"] == todo_id:
             if notes is not None:
                 TODOS[i]["notes"] = notes
+            # Save to file for persistence
+            save_todos()
             return TODOS[i]
     raise HTTPException(status_code=404, detail="Todo not found")
 
@@ -512,6 +595,8 @@ def delete_todo(todo_id: int):
     for i, todo in enumerate(TODOS):
         if todo["id"] == todo_id:
             deleted_todo = TODOS.pop(i)
+            # Save to file for persistence
+            save_todos()
             return {"message": "Todo deleted", "todo": deleted_todo}
     raise HTTPException(status_code=404, detail="Todo not found")
 
