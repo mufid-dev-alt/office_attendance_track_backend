@@ -171,44 +171,54 @@ DEFAULT_USERS = [
     }
 ]
 
-# Load data from files or use defaults
-USERS = load_data_from_file(USERS_FILE, DEFAULT_USERS)
-
-# Pre-populate attendance data for April 1, 2025 to July 2, 2025 (excluding weekends)
-def generate_attendance_data():
-    attendance_records = []
-    record_id = 1
+# Global state management for Vercel serverless environment
+class GlobalState:
+    def __init__(self):
+        self.users = DEFAULT_USERS.copy()
+        self.attendance_records = self.generate_attendance_data()
+        self.todos = []
+        self.deleted_users = []
+        print(f"🚀 Initialized global state with {len(self.users)} users and {len(self.attendance_records)} attendance records")
     
-    # Start from April 1, 2025
-    start_date = datetime(2025, 4, 1)
-    # End at July 2, 2025
-    end_date = datetime(2025, 7, 2)
-    
-    for user in DEFAULT_USERS[1:]:  # Skip admin user
-        current_date = start_date
-        while current_date <= end_date:
-            # Skip weekends (Saturday=5, Sunday=6)
-            if current_date.weekday() < 5:
-                # Random attendance pattern (85% present, 15% absent)
-                status = "present" if random.random() < 0.85 else "absent"
+    def generate_attendance_data(self):
+        """Generate default attendance data"""
+        attendance_records = []
+        record_id = 1
+        
+        # Start from April 1, 2025
+        start_date = datetime(2025, 4, 1)
+        # End at July 2, 2025
+        end_date = datetime(2025, 7, 2)
+        
+        for user in DEFAULT_USERS[1:]:  # Skip admin user
+            current_date = start_date
+            while current_date <= end_date:
+                # Skip weekends (Saturday=5, Sunday=6)
+                if current_date.weekday() < 5:
+                    # Random attendance pattern (85% present, 15% absent)
+                    status = "present" if random.random() < 0.85 else "absent"
+                    
+                    attendance_records.append({
+                        "id": record_id,
+                        "user_id": user["id"],
+                        "status": status,
+                        "date": current_date.strftime("%Y-%m-%d"),
+                        "notes": None
+                    })
+                    record_id += 1
                 
-                attendance_records.append({
-                    "id": record_id,
-                    "user_id": user["id"],
-                    "status": status,
-                    "date": current_date.strftime("%Y-%m-%d"),
-                    "notes": None
-                })
-                record_id += 1
-            
-            current_date += timedelta(days=1)
-    
-    return attendance_records
+                current_date += timedelta(days=1)
+        
+        return attendance_records
 
-# Load data from files or generate defaults
-ATTENDANCE_RECORDS = load_data_from_file(ATTENDANCE_FILE, generate_attendance_data())
-TODOS = load_data_from_file(TODOS_FILE, [])
-DELETED_USERS = load_data_from_file(DELETED_USERS_FILE, [])
+# Initialize global state
+state = GlobalState()
+
+# Compatibility aliases for existing code
+USERS = state.users
+ATTENDANCE_RECORDS = state.attendance_records
+TODOS = state.todos
+DELETED_USERS = state.deleted_users
 
 @app.get("/")
 def read_root():
@@ -216,8 +226,10 @@ def read_root():
         "message": "Office Attendance Management API", 
         "version": "1.0.0", 
         "status": "running",
-        "total_users": len(USERS),
-        "total_attendance_records": len(ATTENDANCE_RECORDS),
+        "total_users": len(state.users),
+        "total_attendance_records": len(state.attendance_records),
+        "environment": "serverless",
+        "note": "Data persists within session only (Vercel serverless limitation)",
         "endpoints": {
             "login": "/api/login",
             "users": "/api/users",
