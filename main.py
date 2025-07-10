@@ -104,7 +104,7 @@ def read_root():
     return {
         "status": "online",
         "message": "Office Attendance API is running",
-        "version": "1.0.0",
+        "version": "1.0.0", 
         "documentation": "/docs",
         "environment": os.getenv("ENVIRONMENT", "development"),
         "timestamp": datetime.now().isoformat()
@@ -126,7 +126,7 @@ def login_get(email: str, password: str):
     # Get all users from MongoDB
     users = mongodb.get_users()
     
-    # Find user by email and password
+        # Find user by email and password
     user = next((u for u in users if u["email"] == email and u["password"] == password), None)
     
     if user:
@@ -149,8 +149,8 @@ def login_post(login_data: LoginRequest):
     
     # Find user by email and password
     user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
-    
-    if user:
+        
+        if user:
         # Return user info without password
         user_info = {
             "id": user["id"],
@@ -159,7 +159,7 @@ def login_post(login_data: LoginRequest):
             "role": user["role"]
         }
         return {"success": True, "user": user_info}
-    else:
+        else:
         return {"success": False, "message": "Invalid credentials"}
 
 @app.options("/api/users")
@@ -178,10 +178,10 @@ def get_users():
         sanitized_users = []
         for user in users:
             sanitized_user = {
-                "id": user["id"],
-                "email": user["email"],
-                "full_name": user["full_name"],
-                "role": user["role"],
+            "id": user["id"],
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "role": user["role"],
                 "created_at": user.get("created_at")
             }
             sanitized_users.append(sanitized_user)
@@ -196,11 +196,11 @@ def create_user(user_data: CreateUserRequest):
     try:
         # Get all users from MongoDB
         users = mongodb.get_users()
-        
+    
         # Check if email already exists
         if any(u["email"] == user_data.email for u in users):
             return {"success": False, "message": "Email already exists"}
-        
+    
         # Create new user
         new_user = {
             "email": user_data.email,
@@ -223,6 +223,7 @@ def create_user(user_data: CreateUserRequest):
         
         return {"success": True, "user": sanitized_user}
     except Exception as e:
+        print(f"❌ Error creating user: {e}")
         return {"success": False, "message": str(e)}
 
 @app.delete("/api/users/{user_id}")
@@ -260,7 +261,7 @@ def permanent_delete_user(user_id: int):
             return {"success": False, "message": "User not found"}
             
         # Return success response
-        return {
+    return {
             "success": True,
             "message": f"User {user_id} permanently deleted",
             "user": {
@@ -283,7 +284,7 @@ def undo_user_deletion(user_id: int):
             return {"success": False, "message": "Deleted user not found"}
             
         # Return success response
-        return {
+    return {
             "success": True,
             "message": f"User {user_id} restored successfully",
             "user": {
@@ -303,81 +304,39 @@ def get_attendance(
 ):
     """Get attendance records with optional filters"""
     try:
-        # Get attendance records from MongoDB
         records = mongodb.get_attendance(user_id, month, year)
-        
-        # Get all users for user details
-        users = mongodb.get_users()
-        users_dict = {u["id"]: u for u in users}
-        
-        # Enrich attendance records with user details
-        enriched_records = []
-        for record in records:
-            user = users_dict.get(record["user_id"])
-            if user:
-                enriched_record = {
-                    **record,
-                    "user_name": user["full_name"],
-                    "user_email": user["email"]
-                }
-                enriched_records.append(enriched_record)
-            else:
-                # Include record even if user not found
-                enriched_records.append({
-                    **record,
-                    "user_name": "Unknown User",
-                    "user_email": "unknown"
-                })
-        
-        return {"success": True, "records": enriched_records}
+        return {"success": True, "records": records}
     except Exception as e:
+        print(f"❌ Error getting attendance records: {e}")
         return {"success": False, "message": str(e)}
 
 @app.post("/api/attendance")
 def create_attendance(record: AttendanceRequest):
-    """Create or update attendance record"""
+    """Create a new attendance record"""
     try:
-        # Validate user exists
-        users = mongodb.get_users()
-        user = next((u for u in users if u["id"] == record.user_id), None)
-        
-        if not user:
-            return {"success": False, "message": "User not found"}
-        
-        # Create attendance record
-        attendance_data = {
+        # Add attendance record to MongoDB
+        created_record = mongodb.add_attendance({
             "user_id": record.user_id,
             "status": record.status,
             "date": record.date,
             "notes": record.notes
-        }
+        })
         
-        # Add or update attendance record in MongoDB
-        created_record = mongodb.add_attendance(attendance_data)
-        
-        # Enrich with user details
-        enriched_record = {
-            **created_record,
-            "user_name": user["full_name"],
-            "user_email": user["email"]
-        }
-        
-        return {"success": True, "record": enriched_record}
+        return {"success": True, "record": created_record}
     except Exception as e:
+        print(f"❌ Error creating attendance record: {e}")
         return {"success": False, "message": str(e)}
 
 @app.delete("/api/attendance/{attendance_id}")
 def delete_attendance(attendance_id: int):
-    """Delete attendance record"""
+    """Delete an attendance record"""
     try:
-        # Delete attendance record from MongoDB
         deleted_record = mongodb.delete_attendance(attendance_id)
-        
         if not deleted_record:
             return {"success": False, "message": "Attendance record not found"}
-            
-        return {"success": True, "message": f"Attendance record {attendance_id} deleted successfully"}
+        return {"success": True, "record": deleted_record}
     except Exception as e:
+        print(f"❌ Error deleting attendance record: {e}")
         return {"success": False, "message": str(e)}
 
 @app.get("/api/attendance/stats")
@@ -398,8 +357,8 @@ def get_attendance_stats(
         
         present_percentage = (present_records / total_records * 100) if total_records > 0 else 0
         absent_percentage = (absent_records / total_records * 100) if total_records > 0 else 0
-        
-        return {
+    
+    return {
             "success": True,
             "stats": {
                 "total": total_records,
@@ -414,19 +373,19 @@ def get_attendance_stats(
 
 @app.get("/api/todos")
 def get_todos(user_id: Optional[int] = Query(None)):
-    """Get todos with optional user filter"""
+    """Get todos for a specific user or all todos"""
     try:
-        # Get todos from MongoDB
         todos = mongodb.get_todos(user_id)
         return {"success": True, "todos": todos}
     except Exception as e:
+        print(f"❌ Error getting todos: {e}")
         return {"success": False, "message": str(e)}
 
 @app.post("/api/todos")
 def create_todo(todo: TodoRequest):
     """Create a new todo"""
     try:
-        # Create todo in MongoDB
+        # Add todo to MongoDB
         created_todo = mongodb.add_todo({
             "user_id": todo.user_id,
             "notes": todo.notes,
@@ -435,37 +394,31 @@ def create_todo(todo: TodoRequest):
         
         return {"success": True, "todo": created_todo}
     except Exception as e:
+        print(f"❌ Error creating todo: {e}")
         return {"success": False, "message": str(e)}
 
 @app.put("/api/todos/{todo_id}")
 def update_todo(todo_id: int, notes: Optional[str] = Query(None)):
-    """Update todo notes"""
+    """Update a todo's notes"""
     try:
-        # Update todo in MongoDB
-        if notes is None:
-            return {"success": False, "message": "Notes cannot be empty"}
-            
         updated_todo = mongodb.update_todo(todo_id, notes)
-        
         if not updated_todo:
             return {"success": False, "message": "Todo not found"}
-            
         return {"success": True, "todo": updated_todo}
     except Exception as e:
+        print(f"❌ Error updating todo: {e}")
         return {"success": False, "message": str(e)}
 
 @app.delete("/api/todos/{todo_id}")
 def delete_todo(todo_id: int):
-    """Delete todo"""
+    """Delete a todo"""
     try:
-        # Delete todo from MongoDB
         deleted_todo = mongodb.delete_todo(todo_id)
-        
         if not deleted_todo:
             return {"success": False, "message": "Todo not found"}
-            
-        return {"success": True, "message": f"Todo {todo_id} deleted successfully"}
+        return {"success": True, "todo": deleted_todo}
     except Exception as e:
+        print(f"❌ Error deleting todo: {e}")
         return {"success": False, "message": str(e)}
 
 @app.get("/api/logout")

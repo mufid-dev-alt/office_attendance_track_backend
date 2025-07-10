@@ -5,7 +5,7 @@ import random
 
 # Try to import required packages, but don't fail if they're not installed
 try:
-    from pymongo import MongoClient
+    from pymongo import MongoClient, ReturnDocument
     from pymongo.collection import Collection
     from pymongo.database import Database
     PYMONGO_AVAILABLE = True
@@ -29,7 +29,6 @@ MONGO_URI = os.getenv("MONGODB_URI", "")
 if not MONGO_URI:
     print("⚠️  WARNING: MONGODB_URI environment variable is not set")
     print("📝 Please set it in your .env file or in your environment")
-    print("📚 See MONGODB_SETUP.md for detailed instructions")
 
 class MongoDBManager:
     """MongoDB database manager for the Office Attendance Tracker application"""
@@ -60,6 +59,10 @@ class MongoDBManager:
             self.todos_collection.create_index("user_id")
             
             print("✅ Connected to MongoDB Atlas")
+            
+            # Test connection
+            self.client.admin.command('ping')
+            print("✅ MongoDB connection test successful")
         except Exception as e:
             print(f"❌ Error connecting to MongoDB: {e}")
             raise
@@ -175,20 +178,32 @@ class MongoDBManager:
     
     def add_user(self, user_data: Dict) -> Dict:
         """Add a new user with auto-generated ID"""
-        # Auto-generate user ID
-        max_id = 0
-        last_user = self.users_collection.find_one({}, sort=[("id", -1)])
-        if last_user:
-            max_id = last_user["id"]
-        
-        user_data['id'] = max_id + 1
-        user_data['created_at'] = datetime.now().isoformat()
-        
-        # Insert into MongoDB
-        self.users_collection.insert_one(user_data)
-        
-        # Return the user without MongoDB _id
-        return {k: v for k, v in user_data.items() if k != '_id'}
+        try:
+            # Auto-generate user ID
+            max_id = 0
+            last_user = self.users_collection.find_one({}, sort=[("id", -1)])
+            if last_user:
+                max_id = last_user["id"]
+            
+            user_data['id'] = max_id + 1
+            user_data['created_at'] = datetime.now().isoformat()
+            
+            # Insert into MongoDB
+            result = self.users_collection.insert_one(user_data)
+            
+            if not result.acknowledged:
+                raise Exception("Failed to insert user into database")
+            
+            # Verify the user was created
+            created_user = self.users_collection.find_one({"_id": result.inserted_id})
+            if not created_user:
+                raise Exception("User was not found after creation")
+            
+            # Return the user without MongoDB _id
+            return {k: v for k, v in created_user.items() if k != '_id'}
+        except Exception as e:
+            print(f"❌ Error adding user: {e}")
+            raise
     
     def delete_user(self, user_id: int) -> Optional[Dict]:
         """Delete a user and store for undo"""
@@ -269,40 +284,32 @@ class MongoDBManager:
         return list(self.attendance_collection.find(query, {"_id": 0}))
     
     def add_attendance(self, attendance_data: Dict) -> Dict:
-        """Add or update attendance record"""
-        # Check if attendance already exists for this user and date
-        existing_record = self.attendance_collection.find_one({
-            "user_id": attendance_data["user_id"],
-            "date": attendance_data["date"]
-        })
-        
-        if existing_record:
-            # Update existing record
-            self.attendance_collection.update_one(
-                {"id": existing_record["id"]},
-                {"$set": {
-                    "status": attendance_data["status"],
-                    "notes": attendance_data.get("notes")
-                }}
-            )
+        """Add a new attendance record with auto-generated ID"""
+        try:
+            # Auto-generate attendance ID
+            max_id = 0
+            last_attendance = self.attendance_collection.find_one({}, sort=[("id", -1)])
+            if last_attendance:
+                max_id = last_attendance["id"]
             
-            # Return the updated record
-            updated_record = self.attendance_collection.find_one({"id": existing_record["id"]})
-            return {k: v for k, v in updated_record.items() if k != '_id'}
-        
-        # Create new record
-        max_id = 0
-        last_record = self.attendance_collection.find_one({}, sort=[("id", -1)])
-        if last_record:
-            max_id = last_record["id"]
-        
-        new_record = {
-            "id": max_id + 1,
-            **attendance_data
-        }
-        
-        self.attendance_collection.insert_one(new_record)
-        return {k: v for k, v in new_record.items() if k != '_id'}
+            attendance_data['id'] = max_id + 1
+            
+            # Insert into MongoDB
+            result = self.attendance_collection.insert_one(attendance_data)
+            
+            if not result.acknowledged:
+                raise Exception("Failed to insert attendance record into database")
+            
+            # Verify the attendance record was created
+            created_record = self.attendance_collection.find_one({"_id": result.inserted_id})
+            if not created_record:
+                raise Exception("Attendance record was not found after creation")
+            
+            # Return the record without MongoDB _id
+            return {k: v for k, v in created_record.items() if k != '_id'}
+        except Exception as e:
+            print(f"❌ Error adding attendance record: {e}")
+            raise
     
     def delete_attendance(self, attendance_id: int) -> Optional[Dict]:
         """Delete attendance record"""
@@ -323,21 +330,34 @@ class MongoDBManager:
         return list(self.todos_collection.find(query, {"_id": 0}))
     
     def add_todo(self, todo_data: Dict) -> Dict:
-        """Add new todo"""
-        # Auto-generate todo ID
-        max_id = 0
-        last_todo = self.todos_collection.find_one({}, sort=[("id", -1)])
-        if last_todo:
-            max_id = last_todo["id"]
-        
-        new_todo = {
-            "id": max_id + 1,
-            **todo_data,
-            "date_created": todo_data.get("date_created") or datetime.now().isoformat()
-        }
-        
-        self.todos_collection.insert_one(new_todo)
-        return {k: v for k, v in new_todo.items() if k != '_id'}
+        """Add a new todo with auto-generated ID"""
+        try:
+            # Auto-generate todo ID
+            max_id = 0
+            last_todo = self.todos_collection.find_one({}, sort=[("id", -1)])
+            if last_todo:
+                max_id = last_todo["id"]
+            
+            todo_data['id'] = max_id + 1
+            if not todo_data.get('date_created'):
+                todo_data['date_created'] = datetime.now().isoformat()
+            
+            # Insert into MongoDB
+            result = self.todos_collection.insert_one(todo_data)
+            
+            if not result.acknowledged:
+                raise Exception("Failed to insert todo into database")
+            
+            # Verify the todo was created
+            created_todo = self.todos_collection.find_one({"_id": result.inserted_id})
+            if not created_todo:
+                raise Exception("Todo was not found after creation")
+            
+            # Return the todo without MongoDB _id
+            return {k: v for k, v in created_todo.items() if k != '_id'}
+        except Exception as e:
+            print(f"❌ Error adding todo: {e}")
+            raise
     
     def update_todo(self, todo_id: int, notes: str) -> Optional[Dict]:
         """Update todo notes"""
