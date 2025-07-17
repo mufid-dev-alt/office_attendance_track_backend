@@ -360,8 +360,8 @@ def get_attendance_stats(
         
         present_percentage = (present_records / total_records * 100) if total_records > 0 else 0
         absent_percentage = (absent_records / total_records * 100) if total_records > 0 else 0
-    
-    return {
+
+        return {
             "success": True,
             "stats": {
                 "total": total_records,
