@@ -150,7 +150,9 @@ def login_post(login_data: LoginRequest):
     # Find user by email and password
     user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
         
-        if user:
+    user = next((u for u in users if u["email"] == email and u["password"] == password), None)
+    
+    if user:
         # Return user info without password
         user_info = {
             "id": user["id"],
@@ -159,7 +161,7 @@ def login_post(login_data: LoginRequest):
             "role": user["role"]
         }
         return {"success": True, "user": user_info}
-        else:
+    else:
         return {"success": False, "message": "Invalid credentials"}
 
 @app.options("/api/users")
