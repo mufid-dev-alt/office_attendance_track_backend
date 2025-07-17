@@ -261,7 +261,7 @@ def permanent_delete_user(user_id: int):
             return {"success": False, "message": "User not found"}
             
         # Return success response
-    return {
+        return {
             "success": True,
             "message": f"User {user_id} permanently deleted",
             "user": {
@@ -284,7 +284,7 @@ def undo_user_deletion(user_id: int):
             return {"success": False, "message": "Deleted user not found"}
             
         # Return success response
-    return {
+        return {
             "success": True,
             "message": f"User {user_id} restored successfully",
             "user": {
