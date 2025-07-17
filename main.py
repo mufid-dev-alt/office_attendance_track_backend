@@ -26,7 +26,7 @@ origins = [
     "https://office-attendance-track-backend.vercel.app", 
     "http://localhost:3000",
     "http://localhost:3001",
-    "*"  # Allow all origins - can be restricted in production
+    "*"  # Allow all origins in development - should be restricted in production
 ]
 
 app.add_middleware(
@@ -110,6 +110,40 @@ def read_root():
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/api/health")
+def health_check():
+    """Health check endpoint that verifies database connection"""
+    try:
+        # Check MongoDB connection
+        db_status = "connected"
+        db_error = None
+        try:
+            # Try to get users count as a simple DB operation
+            users_count = len(mongodb.get_users())
+            db_details = f"Users count: {users_count}"
+        except Exception as e:
+            db_status = "error"
+            db_error = str(e)
+            db_details = None
+            
+        return {
+            "status": "healthy",
+            "api_version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "environment": os.getenv("ENVIRONMENT", "development"),
+            "database": {
+                "status": db_status,
+                "error": db_error,
+                "details": db_details
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.get("/api/test")
 def test_endpoint():
     """Test endpoint for debugging"""
@@ -124,45 +158,65 @@ def login_options():
 def login_get(email: str, password: str):
     """Login endpoint (GET method)"""
     print("Received request for /api/login (GET)")
-    # Get all users from MongoDB
-    users = mongodb.get_users()
-    
+    try:
+        # Get all users from MongoDB
+        users = mongodb.get_users()
+        
+        if not users:
+            print("⚠️ Warning: No users found in database")
+            return {"success": False, "message": "Authentication service unavailable. Please try again later."}
+        
         # Find user by email and password
-    user = next((u for u in users if u["email"] == email and u["password"] == password), None)
-    
-    if user:
-        # Return user info without password
-        user_info = {
-            "id": user["id"],
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "role": user["role"]
-        }
-        return {"success": True, "user": user_info}
-    else:
-        return {"success": False, "message": "Invalid credentials"}
+        user = next((u for u in users if u["email"] == email and u["password"] == password), None)
+        
+        if user:
+            # Return user info without password
+            user_info = {
+                "id": user["id"],
+                "email": user["email"],
+                "full_name": user["full_name"],
+                "role": user["role"]
+            }
+            print(f"✅ User {user['email']} logged in successfully (GET method)")
+            return {"success": True, "user": user_info}
+        else:
+            print(f"❌ Failed login attempt for email: {email} (GET method)")
+            return {"success": False, "message": "Invalid email or password"}
+    except Exception as e:
+        print(f"❌ Error during login (GET method): {e}")
+        return {"success": False, "message": "An error occurred during login. Please try again later."}
 
 @app.post("/api/login")
 def login_post(login_data: LoginRequest):
     """Login endpoint (POST method)"""
     print("Received request for /api/login (POST)")
-    # Get all users from MongoDB
-    users = mongodb.get_users()
-    
-    # Find user by email and password
-    user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
-    
-    if user:
-        # Return user info without password
-        user_info = {
-            "id": user["id"],
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "role": user["role"]
-        }
-        return {"success": True, "user": user_info}
-    else:
-        return {"success": False, "message": "Invalid credentials"}
+    try:
+        # Get all users from MongoDB
+        users = mongodb.get_users()
+        
+        if not users:
+            print("⚠️ Warning: No users found in database")
+            return {"success": False, "message": "Authentication service unavailable. Please try again later."}
+        
+        # Find user by email and password
+        user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
+        
+        if user:
+            # Return user info without password
+            user_info = {
+                "id": user["id"],
+                "email": user["email"],
+                "full_name": user["full_name"],
+                "role": user["role"]
+            }
+            print(f"✅ User {user['email']} logged in successfully")
+            return {"success": True, "user": user_info}
+        else:
+            print(f"❌ Failed login attempt for email: {login_data.email}")
+            return {"success": False, "message": "Invalid email or password"}
+    except Exception as e:
+        print(f"❌ Error during login: {e}")
+        return {"success": False, "message": "An error occurred during login. Please try again later."}
 
 @app.options("/api/users")
 def users_options():

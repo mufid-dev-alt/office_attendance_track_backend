@@ -24,11 +24,14 @@ except ImportError:
     print("📝 To install: pip install python-dotenv")
 
 # MongoDB connection string from environment variable
-MONGO_URI = "mongodb+srv://office-app-user:admin123@office-attendance-track.hml0x1v.mongodb.net/?retryWrites=true&w=majority&appName=Office-attendance-track"
+MONGO_URI = os.getenv("MONGODB_URI", "mongodb+srv://office-app-user:admin123@office-attendance-track.hml0x1v.mongodb.net/?retryWrites=true&w=majority&appName=Office-attendance-track")
 
 if not MONGO_URI:
     print("⚠️  WARNING: MONGODB_URI environment variable is not set")
     print("📝 Please set it in your .env file or in your environment")
+else:
+    print(f"✅ MongoDB URI configured: {MONGO_URI[:20]}...")
+
 
 class MongoDBManager:
     """MongoDB database manager for the Office Attendance Tracker application"""
@@ -44,7 +47,13 @@ class MongoDBManager:
             return
             
         try:
-            self.client = MongoClient(MONGO_URI)
+            print("🔄 Connecting to MongoDB Atlas...")
+            self.client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+            
+            # Test connection with timeout
+            self.client.admin.command('ping')
+            print("✅ MongoDB connection test successful")
+            
             self.db = self.client["office_attendance_db"]
             
             # Initialize collections
@@ -54,18 +63,20 @@ class MongoDBManager:
             self.deleted_users_collection = self.db["deleted_users"]
             
             # Create indexes for better query performance
-            self.users_collection.create_index("email", unique=True)
-            self.attendance_collection.create_index([("user_id", 1), ("date", 1)], unique=True)
-            self.todos_collection.create_index("user_id")
-            
-            print("✅ Connected to MongoDB Atlas")
-            
-            # Test connection
-            self.client.admin.command('ping')
-            print("✅ MongoDB connection test successful")
+            try:
+                self.users_collection.create_index("email", unique=True)
+                self.attendance_collection.create_index([("user_id", 1), ("date", 1)], unique=True)
+                self.todos_collection.create_index("user_id")
+                print("✅ MongoDB indexes created successfully")
+            except Exception as index_error:
+                print(f"⚠️ Warning: Could not create indexes: {index_error}")
+                
+            print("✅ Connected to MongoDB Atlas successfully")
         except Exception as e:
             print(f"❌ Error connecting to MongoDB: {e}")
-            raise
+            print("⚠️ The application may not function correctly without database connection")
+            # Don't raise the exception, allow the app to start even with DB issues
+            # This helps with debugging
     
     def initialize_default_data(self):
         """Initialize database with default data if collections are empty"""
@@ -383,4 +394,4 @@ class MongoDBManager:
         return {k: v for k, v in todo.items() if k != '_id'}
 
 # Create a singleton instance
-mongodb = MongoDBManager() 
+mongodb = MongoDBManager()
