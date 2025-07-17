@@ -149,8 +149,6 @@ def login_post(login_data: LoginRequest):
     
     # Find user by email and password
     user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
-        
-    user = next((u for u in users if u["email"] == email and u["password"] == password), None)
     
     if user:
         # Return user info without password
