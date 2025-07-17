@@ -24,7 +24,7 @@ except ImportError:
     print("📝 To install: pip install python-dotenv")
 
 # MongoDB connection string from environment variable
-MONGO_URI = os.getenv("MONGODB_URI", "")
+MONGO_URI = "mongodb+srv://office-app-user:admin123@office-attendance-track.hml0x1v.mongodb.net/?retryWrites=true&w=majority&appName=Office-attendance-track"
 
 if not MONGO_URI:
     print("⚠️  WARNING: MONGODB_URI environment variable is not set")
