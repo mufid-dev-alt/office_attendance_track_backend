@@ -123,6 +123,7 @@ def login_options():
 @app.get("/api/login")
 def login_get(email: str, password: str):
     """Login endpoint (GET method)"""
+    print("Received request for /api/login (GET)")
     # Get all users from MongoDB
     users = mongodb.get_users()
     
@@ -144,6 +145,7 @@ def login_get(email: str, password: str):
 @app.post("/api/login")
 def login_post(login_data: LoginRequest):
     """Login endpoint (POST method)"""
+    print("Received request for /api/login (POST)")
     # Get all users from MongoDB
     users = mongodb.get_users()
     
@@ -170,6 +172,7 @@ def users_options():
 @app.get("/api/users")
 def get_users():
     """Get all users"""
+    print("Received request for /api/users")
     try:
         # Get users from MongoDB
         users = mongodb.get_users()
@@ -439,3 +442,8 @@ def force_sync_attendance():
         return {"success": True, "message": "Attendance data synchronized successfully"}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+@app.get("/ping")
+def ping():
+    print("/ping endpoint hit")
+    return {"message": "pong"}
