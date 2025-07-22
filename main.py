@@ -22,11 +22,12 @@ app = FastAPI(title="Office Attendance Management API", version="1.0.0")
 
 # Configure CORS properly for production
 origins = [
-    "https://office-attendance-track-frontend.vercel.app",
-    "https://office-attendance-track-backend.vercel.app", 
+    "https://office-attendance-track-frontend.onrender.com",
+    "https://office-attendance-track-backend.onrender.com", 
     "http://localhost:3000",
     "http://localhost:3001",
-    "*"  # Allow all origins in development - should be restricted in production
+    # Remove wildcard in production
+    # "*"  # Allow all origins in development - should be restricted in production
 ]
 
 app.add_middleware(
