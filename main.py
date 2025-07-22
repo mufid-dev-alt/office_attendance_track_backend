@@ -427,6 +427,8 @@ def create_todo(todo: TodoRequest):
 def update_todo(todo_id: int, notes: Optional[str] = Query(None)):
     """Update a todo's notes"""
     try:
+        if notes is None:
+            return {"success": False, "message": "Notes cannot be empty"}
         updated_todo = mongodb.update_todo(todo_id, notes)
         if not updated_todo:
             return {"success": False, "message": "Todo not found"}
