@@ -111,39 +111,7 @@ def read_root():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/api/health")
-def health_check():
-    """Health check endpoint that verifies database connection"""
-    try:
-        # Check MongoDB connection
-        db_status = "connected"
-        db_error = None
-        try:
-            # Try to get users count as a simple DB operation
-            users_count = len(mongodb.get_users())
-            db_details = f"Users count: {users_count}"
-        except Exception as e:
-            db_status = "error"
-            db_error = str(e)
-            db_details = None
-            
-        return {
-            "status": "healthy",
-            "api_version": "1.0.0",
-            "timestamp": datetime.now().isoformat(),
-            "environment": os.getenv("ENVIRONMENT", "development"),
-            "database": {
-                "status": db_status,
-                "error": db_error,
-                "details": db_details
-            }
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+
 
 @app.get("/api/test")
 def test_endpoint():
@@ -484,10 +452,7 @@ def logout():
     """Logout endpoint"""
     return {"success": True, "message": "Logged out successfully"}
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
 
 @app.post("/api/attendance/force-sync")
 def force_sync_attendance():
