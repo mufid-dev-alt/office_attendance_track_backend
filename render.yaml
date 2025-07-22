@@ -3,7 +3,7 @@ services:
   - type: web
     name: office-attendance-track-backend
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip==23.1.2 && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: MONGODB_URI
