@@ -20,19 +20,18 @@ from mongodb import mongodb
 
 app = FastAPI(title="Office Attendance Management API", version="1.0.0")
 
-# Configure CORS properly for production
+# Configure CORS to allow frontend access
 origins = [
     "https://office-attendance-track-frontend.onrender.com",
     "https://office-attendance-track-backend.onrender.com", 
     "http://localhost:3000",
     "http://localhost:3001",
-    # Remove wildcard in production
-    # "*"  # Allow all origins in development - should be restricted in production
+    "*"  # Allow all origins for now to fix connectivity issues
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Temporarily allow all origins to fix 502 issues
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -486,3 +485,9 @@ def force_sync_attendance():
 def ping():
     print("/ping endpoint hit")
     return {"message": "pong"}
+
+# Add this for Render deployment
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
