@@ -295,31 +295,49 @@ class MongoDBManager:
         return list(self.attendance_collection.find(query, {"_id": 0}))
     
     def add_attendance(self, attendance_data: Dict) -> Dict:
-        """Add a new attendance record with auto-generated ID"""
+        """Add or update attendance record for the given user and date"""
         try:
-            # Auto-generate attendance ID
-            max_id = 0
-            last_attendance = self.attendance_collection.find_one({}, sort=[("id", -1)])
-            if last_attendance:
-                max_id = last_attendance["id"]
+            # Check if record exists for this user and date
+            existing_record = self.attendance_collection.find_one({
+                "user_id": attendance_data["user_id"],
+                "date": attendance_data["date"]
+            })
             
-            attendance_data['id'] = max_id + 1
-            
-            # Insert into MongoDB
-            result = self.attendance_collection.insert_one(attendance_data)
-            
-            if not result.acknowledged:
-                raise Exception("Failed to insert attendance record into database")
-            
-            # Verify the attendance record was created
-            created_record = self.attendance_collection.find_one({"_id": result.inserted_id})
-            if not created_record:
-                raise Exception("Attendance record was not found after creation")
-            
-            # Return the record without MongoDB _id
-            return {k: v for k, v in created_record.items() if k != '_id'}
+            if existing_record:
+                # Update existing record
+                self.attendance_collection.update_one(
+                    {"id": existing_record["id"]},
+                    {"$set": {
+                        "status": attendance_data["status"],
+                        "notes": attendance_data.get("notes")
+                    }}
+                )
+                updated_record = self.attendance_collection.find_one({"id": existing_record["id"]})
+                return {k: v for k, v in updated_record.items() if k != '_id'}
+            else:
+                # Create new record
+                max_id = 0
+                last_attendance = self.attendance_collection.find_one({}, sort=[("id", -1)])
+                if last_attendance:
+                    max_id = last_attendance["id"]
+                
+                attendance_data['id'] = max_id + 1
+                
+                # Insert into MongoDB
+                result = self.attendance_collection.insert_one(attendance_data)
+                
+                if not result.acknowledged:
+                    raise Exception("Failed to insert attendance record into database")
+                
+                # Verify the attendance record was created
+                created_record = self.attendance_collection.find_one({"_id": result.inserted_id})
+                if not created_record:
+                    raise Exception("Attendance record was not found after creation")
+                
+                # Return the record without MongoDB _id
+                return {k: v for k, v in created_record.items() if k != '_id'}
         except Exception as e:
-            print(f"❌ Error adding attendance record: {e}")
+            print(f"❌ Error adding/updating attendance record: {e}")
             raise
     
     def delete_attendance(self, attendance_id: int) -> Optional[Dict]:

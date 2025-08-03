@@ -44,6 +44,7 @@ app.add_middleware(
 class LoginRequest(BaseModel):
     email: str
     password: str
+    role: str  # Added role to the login request
 
 class User(BaseModel):
     id: int
@@ -171,6 +172,12 @@ def login_post(login_data: LoginRequest):
         user = next((u for u in users if u["email"] == login_data.email and u["password"] == login_data.password), None)
         
         if user:
+            # Check if the role matches
+            if user["role"] != login_data.role:
+                if login_data.role == "admin":
+                    return {"success": False, "message": "You are not an admin. Please use user login section."}
+                else:
+                    return {"success": False, "message": "You are an admin. Please use admin login section."}
             # Return user info without password
             user_info = {
                 "id": user["id"],
@@ -322,6 +329,11 @@ def undo_user_deletion(user_id: int):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+@app.options("/api/attendance")
+def attendance_options():
+    """Handle CORS preflight request for attendance"""
+    return {}
+
 @app.get("/api/attendance")
 def get_attendance(
     user_id: Optional[int] = Query(None),
@@ -386,16 +398,19 @@ def get_attendance_stats(
 
         return {
             "success": True,
-            "stats": {
-                "total": total_records,
-                "present": present_records,
-                "absent": absent_records,
-                "present_percentage": round(present_percentage, 2),
-                "absent_percentage": round(absent_percentage, 2)
-            }
+            "present_days": present_records,
+            "absent_days": absent_records,
+            "total_days": total_records,
+            "present_percentage": round(present_percentage, 2),
+            "absent_percentage": round(absent_percentage, 2)
         }
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+@app.options("/api/todos")
+def todos_options():
+    """Handle CORS preflight request for todos"""
+    return {}
 
 @app.get("/api/todos")
 def get_todos(user_id: Optional[int] = Query(None)):
@@ -460,8 +475,10 @@ def logout():
 def force_sync_attendance():
     """Force synchronization of attendance data"""
     try:
-        # This is a no-op with MongoDB since data is already persistent
-        return {"success": True, "message": "Attendance data synchronized successfully"}
+        # Get total record count for response
+        all_records = mongodb.get_attendance()
+        record_count = len(all_records)
+        return {"success": True, "message": "Attendance data synchronized successfully", "record_count": record_count}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
