@@ -98,6 +98,8 @@ async def startup_event():
         print("✅ MongoDB initialized with default data")
     except Exception as e:
         print(f"❌ Error initializing MongoDB: {e}")
+        # Don't let MongoDB errors crash the app startup
+        print("⚠️ App will continue running without database initialization")
 
 @app.get("/")
 def read_root():
@@ -117,6 +119,11 @@ def read_root():
 def test_endpoint():
     """Test endpoint for debugging"""
     return {"status": "ok", "message": "Test endpoint working", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/health")
+def health_check():
+    """Simple health check endpoint"""
+    return {"status": "healthy", "service": "attendance-api", "timestamp": datetime.now().isoformat()}
 
 @app.options("/api/login")
 def login_options():
