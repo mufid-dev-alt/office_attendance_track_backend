@@ -292,12 +292,22 @@ def delete_user(user_id: int):
 def permanent_delete_user(user_id: int):
     """Permanently delete a user without undo capability"""
     try:
-        # This is not implemented in MongoDB manager, but we can simulate it
-        # by deleting the user and then removing it from deleted_users
-        deleted_data = mongodb.delete_user(user_id)
-        
-        if not deleted_data:
-            return {"success": False, "message": "User not found"}
+        # First check if user exists in active users
+        user_data = mongodb.get_user_by_id(user_id)
+        if user_data:
+            # User is active, delete them normally
+            deleted_data = mongodb.delete_user(user_id)
+            if not deleted_data:
+                return {"success": False, "message": "User not found"}
+        else:
+            # User might be in deleted_users collection, check there
+            deleted_user_data = mongodb.get_deleted_user_by_id(user_id)
+            if not deleted_user_data:
+                return {"success": False, "message": "User not found"}
+            
+            # Remove from deleted_users collection permanently
+            mongodb.permanently_remove_deleted_user(user_id)
+            deleted_data = {"user": deleted_user_data["user"]}
             
         # Return success response
         return {

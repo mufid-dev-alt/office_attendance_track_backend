@@ -272,6 +272,25 @@ class MongoDBManager:
         # Return the restored data without MongoDB _id
         return {k: v for k, v in deleted_user_data.items() if k != '_id'}
     
+    def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Get a user by ID from active users"""
+        user = self.users_collection.find_one({"id": user_id})
+        if user:
+            return {k: v for k, v in user.items() if k != '_id'}
+        return None
+    
+    def get_deleted_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Get a deleted user by ID from deleted_users collection"""
+        deleted_user = self.deleted_users_collection.find_one({"user.id": user_id})
+        if deleted_user:
+            return {k: v for k, v in deleted_user.items() if k != '_id'}
+        return None
+    
+    def permanently_remove_deleted_user(self, user_id: int) -> bool:
+        """Permanently remove a user from deleted_users collection"""
+        result = self.deleted_users_collection.delete_one({"user.id": user_id})
+        return result.deleted_count > 0
+    
     # Attendance operations
     def get_attendance(self, user_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None) -> List[Dict]:
         """Get attendance records with optional filters"""
