@@ -24,42 +24,6 @@ A robust FastAPI-based backend service for managing office attendance, user mana
 - `pymongo==4.6.1` - MongoDB driver
 - `python-dotenv==1.0.0` - Environment variables
 
-## 🏗️ Architecture
-
-### Data Models
-
-#### User Model
-```python
-{
-    "id": int,
-    "email": str,
-    "password": str,
-    "full_name": str,
-    "role": str,  # "admin" or "user"
-    "created_at": str
-}
-```
-
-#### Attendance Model
-```python
-{
-    "id": int,
-    "user_id": int,
-    "status": str,  # "present" or "absent"
-    "date": str,    # YYYY-MM-DD format
-    "notes": str    # Optional
-}
-```
-
-#### Todo Model
-```python
-{
-    "id": int,
-    "user_id": int,
-    "notes": str,
-    "date_created": str
-}
-```
 
 ## 🔐 Authentication & Authorization
 
@@ -104,12 +68,6 @@ A robust FastAPI-based backend service for managing office attendance, user mana
 - `POST /api/todos` - Create new todo
 - `PUT /api/todos/{todo_id}` - Update todo
 - `DELETE /api/todos/{todo_id}` - Delete todo
-
-### System Health
-- `GET /` - Root endpoint with API status
-- `GET /api/health` - Health check endpoint
-- `GET /api/test` - Test endpoint
-- `GET /ping` - Ping endpoint
 
 ## 🔧 Key Features
 
@@ -160,11 +118,6 @@ A robust FastAPI-based backend service for managing office attendance, user mana
 
 ## 🚀 Deployment
 
-### Environment Variables
-- `MONGODB_URI` - MongoDB Atlas connection string
-- `PORT` - Server port (auto-configured by Render)
-- `ENVIRONMENT` - Deployment environment
-
 ### Render Configuration
 - **Service Type:** Web Service
 - **Build Command:** `pip install -r requirements.txt`
@@ -178,12 +131,6 @@ A robust FastAPI-based backend service for managing office attendance, user mana
 - **Error Handling:** Comprehensive error responses
 - **Database Security:** MongoDB Atlas with connection string authentication
 
-## 📊 Performance Features
-
-- **Connection Pooling:** MongoDB connection management
-- **Efficient Queries:** Optimized database queries
-- **Caching:** In-memory data caching for frequently accessed data
-- **Async Operations:** Non-blocking API operations
 
 ## 🐛 Error Handling
 
@@ -198,18 +145,5 @@ Access interactive API documentation at:
 - **Swagger UI:** `/docs`
 - **ReDoc:** `/redoc`
 
-## 🔄 Real-time Updates
-
-- **Event-driven Architecture:** Immediate database updates
-- **Consistent State:** All changes reflect immediately across the system
-- **Data Synchronization:** Automatic sync between frontend and backend
-
-## 📞 Support
-
-For technical support or questions about the API, please refer to the API documentation or contact the development team.
-
----
-
-**Version:** 1.0.0  
-**Last Updated:** January 2025  
+ 
 **Status:** Production Ready
